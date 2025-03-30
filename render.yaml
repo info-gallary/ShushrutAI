@@ -1,0 +1,8 @@
+services:
+  type: web
+  name : shushrutai
+  runtime: python
+  plan: free
+  autoDeploy: false
+  buildCommand: pip install -r requirements.txt
+  startCommand: python main.py

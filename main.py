@@ -18,13 +18,11 @@ from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
 from dotenv import load_dotenv
 from agno.media import Image as AgnoImage
-import google.generativeai as genai
 from pydantic import BaseModel, Field
 from agno.team.team import Team
 from agno.models.groq import Groq
 from agno.tools.arxiv import ArxivTools
 from agno.tools.duckduckgo import DuckDuckGoTools
-from src.prompts import FULL_INSTRUCTIONS
 from pymongo import MongoClient
 
 load_dotenv()
@@ -52,7 +50,7 @@ CLASS_NAMES = [
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model = SkinDiseaseCNN(num_classes=9).to(device)
-model.load_state_dict(torch.load(r"C:\Users\DELL\OneDrive\CodeDB\Hackathon\HackNUthon'25\models\skin_disease_model.pth", map_location=device))
+model.load_state_dict(torch.load(r"./models/skin_disease_model.pth", map_location=device))
 model.eval()
 
 transform = transforms.Compose([
@@ -85,12 +83,11 @@ def read_root():
 @app.post("/predict")
 def classify_image(obj_id: str):
     try:
-        global global_pred
         collection = db["predicts"] 
         def get_latest_skin_image(obj_id: str):
             try:
-                obj_id = ObjectId(obj_id)  # Convert string to ObjectId
-                document = collection.find_one({"patient": obj_id})  # Fetch the document
+                obj_id = ObjectId(obj_id)  
+                document = collection.find_one({"patient": obj_id})  
 
                 if document:
                     image_url = document.get("latestSkinImage")
@@ -154,22 +151,90 @@ def classify_image(obj_id: str):
         diag_collection.replace_one({}, {"pred": pred.content}, upsert=True)
 
         report_agent = Agent(
-            name="Medical Imaging Analysis Expert",
+            name="Medical Imaging Analysis and report generator Expert",
             model=Gemini(id="gemini-2.0-flash-exp"),
             tools=[DuckDuckGoTools()],
-            context={"verify": result.content, "pred": pred.content},
+            context={"pred": pred.content},
             add_context=True,
             markdown=True,
-            instructions=FULL_INSTRUCTIONS
+            instructions=dedent("""# **Skin Disease Diagnosis Report** 🏥  
+
+## **Step 1: Image Technical Assessment**  
+
+### **1.1 Imaging & Quality Review**  
+- **Imaging Modality Identification:** _(Dermatoscopic, Clinical, Histopathological, etc.)_  
+- **Anatomical Region & Patient Positioning:** _(Specify if available)_  
+- **Image Quality Evaluation:** _(Contrast, Clarity, Presence of Artifacts)_  
+- **Technical Adequacy for Diagnostic Purposes:** _(Yes/No, with reasoning)_  
+
+### **1.2 Professional Dermatological Analysis**  
+- **Systematic Anatomical Review**  
+- **Primary Findings:** _(Lesion Size, Shape, Texture, Color, etc.)_  
+- **Secondary Observations (if applicable)**  
+- **Anatomical Variants or Incidental Findings**  
+- **Severity Assessment:** _(Normal / Mild / Moderate / Severe)_  
+
+---
+
+## **Step 2: Context-Specific Diagnosis & Clinical Interpretation**  
+- **Primary Diagnosis:** _(Detailed interpretation based on the given disease context)_  
+- **Secondary Condition (if suspected):** _(Mention briefly without shifting focus)_  
+
+---
+
+## **Step 3: Recommended Next Steps**  
+- **Home Remedies & Skincare:** _(Moisturizing, Avoiding Triggers, Hydration)_  
+- **Medications & Treatments:** _(Antifungal, Antibiotic, Steroid Creams, Oral Medications)_  
+- **When to See a Doctor:** _(Persistent Symptoms, Spreading, Bleeding, Painful Lesions)_  
+- **Diagnostic Tests (if required):** _(Skin Biopsy, Allergy Tests, Blood Tests)_  
+
+---
+
+## **Step 4: Patient Education**  
+- **Clear, Jargon-Free Explanation of Findings**  
+- **Visual Analogies & Simple Diagrams (if helpful)**  
+- **Common Questions Addressed**  
+- **Lifestyle Implications (if any)**  
+
+---
+
+## **Step 5: Ayurvedic or Home Solutions**  
+_(Applied only if the condition is non-cancerous or mild)_  
+- **Dry & Irritated Skin:** Apply **Aloe Vera gel**, **Coconut oil**, or **Ghee** for deep moisturization.  
+- **Inflammation & Redness:** Use a paste of **Sandalwood (Chandan)** and **Rose water** for cooling effects.  
+- **Fungal & Bacterial Infections:** Apply **Turmeric (Haldi) paste** with honey or **Neem leaves** for antimicrobial benefits.  
+- **Eczema & Psoriasis:** Drink **Giloy (Guduchi) juice** and use a paste of **Manjistha & Licorice (Yashtimadhu)** for skin detox.  
+
+[🔍 More Ayurvedic Solutions](https://www.example.com)  
+
+---
+
+## **Step 6: Evidence-Based Context & References**  
+🔬 Using DuckDuckGo search:  
+- **Recent relevant medical literature**  
+- **Standard treatment guidelines**  
+- **Similar case studies**  
+- **Technological advances in imaging/treatment**  
+- **2-3 authoritative medical references**  
+
+---
+
+## **Final Summary & Conclusion**  
+📌 **Key Takeaways:**  
+- **Most Likely Diagnosis:** _(Brief summary)_  
+- **Recommended Actions:** _(Main steps for treatment and next consultation)_  
+
+**Note:** This report is **AI-generated** and should **not** replace professional medical consultation. Always consult a **dermatologist** for a confirmed diagnosis and personalized treatment.  
+
+---
+""")
         )
-        pred = pred.content
-        global_pred = pred
-        report: RunResponse = report_agent.run("Please analyze this skin image and generate a proper report for Dermatologist to understand.", images=[agno_image])
+        report: RunResponse = report_agent.run("Please analyze this skin image output context and generate a proper report for Dermatologist to understand.", images=[agno_image])
         net_agent = Agent(
             name="Medical Imaging Expert",
             model=Groq(id="qwen-2.5-32b"),
             tools=[DuckDuckGoTools()],  
-            context={"pred": pred},
+            context={"pred": pred.content},
             add_context=True,
             markdown=True,  
             instructions=dedent(
@@ -230,7 +295,7 @@ def classify_image(obj_id: str):
 
         )
         jarvis: RunResponse = net_agent.run("Please analyze this skin based diagnostics report and give instructions to doctor")
-        return {"image_url": image_url, "verify": result.content, "prediction": pred,"report":report.content,"jarvis": jarvis.content}
+        return {"image_url": image_url, "verify": result.content, "prediction": pred.content,"report":report.content,"jarvis": jarvis.content}
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=400, detail=f"Error fetching image: {str(e)}")
 
