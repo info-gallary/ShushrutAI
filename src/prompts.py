@@ -57,9 +57,21 @@ Provide medical recommendations based on severity:
 - **Common Questions Addressed**  
 - **Lifestyle Implications (if any)**  
 
+## **Step 5: Ayurvedic or Home Solution
+                           
+Based on the severity of the detected skin condition, here are Ayurvedic and home-based solutions:  
+- applies only when cancer is not detected or is mild.
+- **Dry & Irritated Skin:** Apply **Aloe Vera gel**, **Coconut oil**, or **Ghee** to deeply moisturize.  
+- **Inflammation & Redness:** Use a paste of **Sandalwood (Chandan)** and **Rose water** for cooling effects.  
+- **Fungal & Bacterial Infections:** Apply **Turmeric (Haldi) paste** with honey or **Neem leaves** for antimicrobial benefits.  
+- **Eczema & Psoriasis:** Drink **Giloy (Guduchi) juice** and use a paste of **Manjistha & Licorice (Yashtimadhu)** for skin detox.  
+- use web search to give accurate solutions with links.
+
+**Disclaimer:** If any unusual moles, persistent wounds, or abnormal skin changes appear, consult a **dermatologist** or **oncologist** immediately.  
+
 ---
 
-## **Step 5: Evidence-Based Context & References**  
+## **Step 6: Evidence-Based Context & References**  
 Using DuckDuckGo search:  
 - Recent relevant medical literature  
 - Standard treatment guidelines  
