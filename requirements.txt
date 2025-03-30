@@ -52,13 +52,11 @@ frozenlist==1.5.0
 fsspec==2025.3.0
 gitdb 
 GitPython 
-google-ai-generativelanguage==0.6.15
 google-api-core==2.24.2
 google-api-python-client==2.164.0
 google-auth==2.38.0
 google-auth-httplib2==0.2.0
 google-genai==1.5.0
-google-generativeai==0.8.4
 googleapis-common-protos==1.69.2
 googlesearch-python==1.3.0
 greenlet==3.1.1
@@ -89,7 +87,6 @@ lancedb==0.21.1
 langchain==0.3.21
 langchain-community==0.3.20
 langchain-core==0.3.47
-langchain-google-genai==2.1.1
 langchain-groq==0.3.1
 langchain-huggingface==0.1.2
 langchain-ollama==0.3.0
@@ -103,7 +100,6 @@ MarkupSafe
 marshmallow==3.26.1
 matplotlib==3.10.1
 mdurl 
-mkl-service==2.4.0
 mkl_fft 
 mkl_random 
 mpmath==1.3.0
@@ -205,9 +201,9 @@ toml
 tomli==2.2.1
 tools==0.1.9
 toolz 
-torch==2.6.0+cu118
-torchaudio==2.6.0+cu118
-torchvision==0.21.0+cu118
+torch
+torchvision
+torchaudio 
 tornado 
 tqdm==4.67.1
 traits==7.0.2
