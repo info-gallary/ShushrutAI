@@ -1,25 +1,19 @@
-import torch
-import torchvision.transforms as transforms
+from predict import predict
 from PIL import Image
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 import os
 import requests
 from io import BytesIO
-import asyncio
 from bson import ObjectId
 
 
-from notebooks.model import SkinDiseaseCNN
 from dotenv import load_dotenv
 from textwrap import dedent
 from agno.agent import Agent, RunResponse
 from agno.models.google import Gemini
 from agno.tools.duckduckgo import DuckDuckGoTools
-from dotenv import load_dotenv
 from agno.media import Image as AgnoImage
-from pydantic import BaseModel, Field
-from agno.team.team import Team
 from agno.models.groq import Groq
 from agno.tools.arxiv import ArxivTools
 from agno.tools.duckduckgo import DuckDuckGoTools
@@ -28,44 +22,10 @@ from pymongo import MongoClient
 load_dotenv()
 
 MONGO_URI=os.getenv("MONGO_URI")
-client=MongoClient(MONGO_URI)
-if not MONGO_URI:
-    print("Error: MONGO_URI is empty. Check your .env file.")
-else:
-    print("Mongo URI Loaded:", MONGO_URI)
-db = client["test"]  
 
 
-CLASS_NAMES = [
-    "Actinic keratosis",
-    "Atopic Dermatitis",
-    "Benign keratosis",
-    "Dermatofibroma",
-    "Melanocytic nevus",
-    "Melanoma",
-    "Squamous cell carcinoma",
-    "Tinea Ringworm Candidiasis",
-    "Vascular lesion"
-]
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-model = SkinDiseaseCNN(num_classes=9).to(device)
-model.load_state_dict(torch.load(r"./models/skin_disease_model.pth", map_location=device))
-model.eval()
 
-transform = transforms.Compose([
-    transforms.Resize((128, 128)),
-    transforms.ToTensor(),
-])
-
-def predict(image: Image.Image):
-    image = transform(image).unsqueeze(0).to(device)
-    with torch.no_grad():
-        output = model(image)
-        probabilities = torch.softmax(output, dim=1)
-        predicted_class = torch.argmax(probabilities, dim=1).item()
-        confidence = probabilities[0, predicted_class].item()
-    return {"class": CLASS_NAMES[predicted_class], "confidence": confidence}
 
 app = FastAPI()
 app.add_middleware(
@@ -75,7 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-diag_collection = db["diag"] 
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the ShrushrutAI"}
@@ -83,6 +42,8 @@ def read_root():
 @app.post("/predict")
 def classify_image(obj_id: str):
     try:
+        client=MongoClient(MONGO_URI)
+        db = client["test"]  
         collection = db["predicts"] 
         def get_latest_skin_image(obj_id: str):
             try:
@@ -148,6 +109,7 @@ def classify_image(obj_id: str):
             )
         )
         pred: RunResponse = unhealthy_skin_agent.run("Please analyze this medical image.", images=[agno_image])
+        diag_collection = db["diag"] 
         diag_collection.replace_one({}, {"pred": pred.content}, upsert=True)
 
         report_agent = Agent(
@@ -199,23 +161,22 @@ def classify_image(obj_id: str):
 ---
 
 ## **Step 5: Ayurvedic or Home Solutions**  
-_(Applied only if the condition is non-cancerous or mild)_  
+_(Applied only if the condition is non-cancerous or mild and use web search)_  
 - **Dry & Irritated Skin:** Apply **Aloe Vera gel**, **Coconut oil**, or **Ghee** for deep moisturization.  
 - **Inflammation & Redness:** Use a paste of **Sandalwood (Chandan)** and **Rose water** for cooling effects.  
 - **Fungal & Bacterial Infections:** Apply **Turmeric (Haldi) paste** with honey or **Neem leaves** for antimicrobial benefits.  
 - **Eczema & Psoriasis:** Drink **Giloy (Guduchi) juice** and use a paste of **Manjistha & Licorice (Yashtimadhu)** for skin detox.  
 
-[🔍 More Ayurvedic Solutions](https://www.example.com)  
-
 ---
 
 ## **Step 6: Evidence-Based Context & References**  
-🔬 Using DuckDuckGo search:  
+🔬 Using DuckDuckGo search and provide relevent links:  
 - **Recent relevant medical literature**  
 - **Standard treatment guidelines**  
 - **Similar case studies**  
 - **Technological advances in imaging/treatment**  
-- **2-3 authoritative medical references**  
+- **2-3 authoritative medical references**
+- give related links also with references.  
 
 ---
 
@@ -301,6 +262,9 @@ _(Applied only if the condition is non-cancerous or mild)_
 
 @app.post("/ans")
 def get_ans(question: str,deep_search: bool = False):
+    client=MongoClient(MONGO_URI)
+    db = client["test"]  
+    diag_collection = db["diag"] 
     latest_entry = diag_collection.find_one({}, {"_id": 0})
     mongo_pred = latest_entry["pred"]
     web_agent = Agent(
@@ -339,4 +303,4 @@ def get_ans(question: str,deep_search: bool = False):
         
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run('main:app', host="127.0.0.1", port=6780, reload=True)
+    uvicorn.run('main:app', host="127.0.0.1", port=4501, reload=True)
