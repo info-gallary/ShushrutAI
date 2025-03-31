@@ -1,4 +1,5 @@
-from predict import predict
+from predict_d import predict_d
+from predict_c import predict_c
 from PIL import Image
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -91,13 +92,22 @@ def classify_image(req: Id):
                     - If healthy, classify it as 'Healthy' and provide the confidence level in percentage.
                     - If unhealthy, classify it as 'Unhealthy' and provide the confidence level in percentage.
                     - Additionally, determine the skin type as one of the following: 'Dry', 'Oily', or 'Normal'.
-                    - give answer in strictly <classification>,<confidence score in percent>,<skin type>,<remarks> format only.
+                    - give answer in strictly <classification>,<confidence score in percent>,<skin type>,<remarks : give some remarks that is in one to two lines> format only.
                     """
             )
         )
 
         result: RunResponse = verify_med_agent.run("Please analyze this medical image.", images=[agno_image])
-        result_pred = predict(image)
+        result_c = predict_c(image)
+        result_d = predict_d(image)
+        if result_c["confidence"] > result_d["confidence"]:
+            result_pred = result_c
+            minor_result = result_d
+        elif result_d["confidence"] > result_c["confidence"]:
+            result_pred = result_d
+            minor_result = result_c
+        else:
+            result_pred = result_c        
         unhealthy_skin_agent = Agent(
             name="Medical Imaging Analysis Expert",
             model=Gemini(id="gemini-2.0-flash-exp"),
@@ -106,7 +116,7 @@ def classify_image(req: Id):
             add_context=True,
             markdown=True,
             instructions=dedent(
-                f"""Analyze the given skin image as an expert dermatologist.If the skin appears healthy, classify the prediction as it 'Healthy' and provide the confidence level. If unhealthy, use the model output to determine the disease. The prediction is by deep learning model is {result_pred}. If classified as one of the following: 'Actinic Keratosis', 'Atopic Dermatitis', 'Benign Keratosis', 'Dermatofibroma', 'Melanocytic Nevus', 'Melanoma', 'Squamous Cell Carcinoma', 'Tinea Ringworm Candidiasis', or 'Vascular Lesion', assess the likelihood of skin cancer. Provide the disease name, confidence level, and remarks. Additionally, include possible symptoms that might be present for further diagnostic evaluation.
+                f"""Analyze the given skin image as an expert dermatologist.If the skin appears healthy, classify the prediction as it 'Healthy' and provide the confidence level. If unhealthy, use the model output to determine the disease. The prediction is by deep learning model is {result_pred}. If classified as one of the following: 'Actinic Keratosis', 'Atopic Dermatitis', 'Benign Keratosis', 'Dermatofibroma', 'Melanocytic Nevus', 'Melanoma', 'Squamous Cell Carcinoma', 'Tinea Ringworm Candidiasis', or 'Vascular Lesion', assess the likelihood of skin cancer other wise its a diesease. Provide the disease name, confidence level, and remarks. Additionally, include possible symptoms that might be present for further diagnostic evaluation.
                 - give answer in strictly <disease>,<confidence score in percent>,<remarks in two to three lines> format only.
                 - If the skin appears healthy, classify it as 'Healthy' and provide the confidence level in percentage.
                 """
@@ -123,8 +133,8 @@ def classify_image(req: Id):
             context={"pred": pred.content},
             add_context=True,
             markdown=True,
-            instructions=dedent("""# Skin Disease Diagnosis Report 🏥  
-
+            instructions=dedent(f"""# Skin Disease Diagnosis Report 🏥  
+                                If the skin classification is unhealthy then in report also add the our model predicted that  {pred.content}  but it also give two answer                         
 ## Step 1: Image Technical Assessment  
 
 ### 1.1 Imaging & Quality Review  
@@ -188,8 +198,14 @@ def classify_image(req: Id):
 📌 Key Takeaways:  
 - Most Likely Diagnosis: (Brief summary)  
 - Recommended Actions: (Main steps for treatment and next consultation)  
+The most likely condition the patient could have is **{result_pred['class']}** with a confidence of {result_pred['confidence']:.2f}. 
+Additionally, there is a minor possibility of **{minor_result['class']}** with a confidence of {minor_result['confidence']:.2f}. 
 
+**Remarks:**  
+- **{result_pred['class']}** (Confidence: {result_pred['confidence']:.2f}) is the primary concern and should be prioritized for diagnosis and treatment.  
+- **{minor_result['class']}** (Confidence: {minor_result['confidence']:.2f}) may be a secondary condition or share similar symptoms. Further medical evaluation is recommended to rule it out.
 Note: This report is AI-generated and should not replace professional medical consultation. Always consult a dermatologist for a confirmed diagnosis and personalized treatment.  
+ - give answer in proper markdown format.
 
 ---
 """)
@@ -204,6 +220,12 @@ Note: This report is AI-generated and should not replace professional medical co
             markdown=True,  
             instructions=dedent(
                 f"""You are an AI-powered Dermatology Voice Assistant, designed to provide expert-level support to dermatologists. Your role is to analyze report {report.content} recommend evidence-based treatments, and guide doctors on the next steps using the latest research and drug discoveries.  
+                The most likely condition the patient could have is **{result_pred['class']}** with a confidence of {result_pred['confidence']:.2f}. 
+                Additionally, there is a minor possibility of **{minor_result['class']}** with a confidence of {minor_result['confidence']:.2f}. 
+
+                **Remarks:**  
+                - **{result_pred['class']}** (Confidence: {result_pred['confidence']:.2f}) is the primary concern and should be prioritized for diagnosis and treatment.  
+                - **{minor_result['class']}** (Confidence: {minor_result['confidence']:.2f}) may be a secondary condition or share similar symptoms. Further medical evaluation is recommended to rule it out.
 
                 ### 1️⃣ Understand & Analyze the Case  
                 - Listen to the doctor’s query about a patient’s condition.  
@@ -232,6 +254,7 @@ Note: This report is AI-generated and should not replace professional medical co
                 ---
 
                 Instructions should be understandable by Dermatologists not for layman audience and make it like a proffesional advice to doctor like doctor is giving advice to the other doctor and make complete instruction summarize and in 4 to 5 lines pointwise.
+                - give answer in proper markdown format.
 
                 """)
 
@@ -261,6 +284,8 @@ def get_ans(q: Query):
                 instructions=dedent(
                     f"""Analyze the given question as an expert dermatologist. use web to get more insights and make sure that your answers are based on doctor point of view that a dermatologist should understand that.
                     - give proper links and references.
+                    - very concise answer and short answer to the point of the question.
+                    - give answer in proper markdown format.
                     """),
 
             )
@@ -277,6 +302,8 @@ def get_ans(q: Query):
                 f"""Analyze the given question as an expert dermatologist. use web to get more insights and make sure that your answers are based on doctor point of view that a dermatologist should understand that.
                  - guide the doctor with treatment and prescription plan for the diesease.
                  - give proper links and references.
+                 - very concise answer and short answer to the point of the question.
+                 - give answer in proper markdown format.
                    """),
 
         )
@@ -290,6 +317,8 @@ def get_ans(q: Query):
             instructions=dedent(
                 f"""Analyze the given question as an expert dermatologist. use Arxiv to get latest research and discoveries and make sure that your answers are based on doctor point of view that a dermatologist should understand that. and that provide the new treatment discoveries and latest research on treatment and drug that is done on the disease and how to treat it.
                  - give proper links and references.
+                 - give answer in proper markdown format.
+                 - very concise answer and short answer to the point of the question.
                  - if not context provided then just act as a professional Dermatologist and give the answer.
                  - guide the doctor with treatment and prescription plan for the diesease.
                    """),
