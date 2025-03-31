@@ -7,9 +7,9 @@ import os
 import requests
 from io import BytesIO
 from bson import ObjectId
-
+from src.google_search_tools import GoogleSearchTools
 from pydantic import BaseModel
-
+from src.crawl import Crawl4aiTools
 from dotenv import load_dotenv
 from textwrap import dedent
 from agno.agent import Agent, RunResponse
@@ -27,8 +27,6 @@ MONGO_URI=os.getenv("MONGO_URI")
 
 class Id(BaseModel):
     obj_id: str
-
-
 
 
 app = FastAPI()
@@ -58,7 +56,7 @@ def classify_image(req: Id):
                 if document:
                     image_url = document.get("latestSkinImage")
                     if image_url:
-                        print(image_url)  # Print the image URL
+                        print(image_url)  
                         return image_url
                     else:
                         print("No image found in document")
@@ -84,22 +82,14 @@ def classify_image(req: Id):
         verify_med_agent = Agent(
             name="Medical Imaging Expert",
             model=Gemini(id="gemini-2.0-flash-exp"),
-            tools=[DuckDuckGoTools()],
+            tools=[DuckDuckGoTools(),GoogleSearchTools(),Crawl4aiTools()],
             markdown=True,
-            instructions=dedent(
-                f"""Analyze the given skin image as an very good and expert dermatologist and expert to determine if the skin is healthy or unhealthy.
-                    - confidence percentage should be between 90 to 100 and you can use the decimal value also.
-                    - If healthy, classify it as 'Healthy' and provide the confidence level in percentage.
-                    - If unhealthy, classify it as 'Unhealthy' and provide the confidence level in percentage.
-                    - Additionally, determine the skin type as one of the following: 'Dry', 'Oily', or 'Normal'.
-                    - give answer in strictly <classification>,<confidence score in percent>,<skin type>,<remarks : give some remarks that is in one to two lines> format only.
-                    """
-            )
         )
 
         result: RunResponse = verify_med_agent.run("Please analyze this medical image.", images=[agno_image])
-        result_c = predict_c(image)
         result_d = predict_d(image)
+        result_c = predict_c(image)
+
         if result_c["confidence"] > result_d["confidence"]:
             result_pred = result_c
             minor_result = result_d
@@ -111,16 +101,11 @@ def classify_image(req: Id):
         unhealthy_skin_agent = Agent(
             name="Medical Imaging Analysis Expert",
             model=Gemini(id="gemini-2.0-flash-exp"),
-            tools=[DuckDuckGoTools()],
+            tools=[DuckDuckGoTools(),predict_c(image),predict_d(image)],
             context={"verify": result.content},
             add_context=True,
             markdown=True,
-            instructions=dedent(
-                f"""Analyze the given skin image as an expert dermatologist.If the skin appears healthy, classify the prediction as it 'Healthy' and provide the confidence level. If unhealthy, use the model output to determine the disease. The prediction is by deep learning model is {result_pred}. If classified as one of the following: 'Actinic Keratosis', 'Atopic Dermatitis', 'Benign Keratosis', 'Dermatofibroma', 'Melanocytic Nevus', 'Melanoma', 'Squamous Cell Carcinoma', 'Tinea Ringworm Candidiasis', or 'Vascular Lesion', assess the likelihood of skin cancer other wise its a diesease. Provide the disease name, confidence level, and remarks. Additionally, include possible symptoms that might be present for further diagnostic evaluation.
-                - give answer in strictly <disease>,<confidence score in percent>,<remarks in two to three lines> format only.
-                - If the skin appears healthy, classify it as 'Healthy' and provide the confidence level in percentage.
-                """
-            )
+
         )
         pred: RunResponse = unhealthy_skin_agent.run("Please analyze this medical image.", images=[agno_image])
         diag_collection = db["diag"] 
@@ -129,11 +114,11 @@ def classify_image(req: Id):
         report_agent = Agent(
             name="Medical Imaging Analysis and report generator Expert",
             model=Gemini(id="gemini-2.0-flash-exp"),
-            tools=[DuckDuckGoTools()],
+            tools=[DuckDuckGoTools(),predict_c(image),predict_d(image),GoogleSearchTools()],
             context={"pred": pred.content},
             add_context=True,
             markdown=True,
-            instructions=dedent(f"""# Skin Disease Diagnosis Report 🏥  
+            instructions=dedent(f"""# Skin Disease Diagnosis Report  
                                 If the skin classification is unhealthy then in report also add the our model predicted that  {pred.content}  but it also give two answer                         
 ## Step 1: Image Technical Assessment  
 
@@ -184,7 +169,7 @@ def classify_image(req: Id):
 ---
 
 ## Step 6: Evidence-Based Context & References  
-🔬 Using DuckDuckGo search and provide relevent links:  
+Using DuckDuckGo search and provide relevent links:  
 - Recent relevant medical literature  
 - Standard treatment guidelines  
 - Similar case studies  
@@ -195,7 +180,7 @@ def classify_image(req: Id):
 ---
 
 ## Final Summary & Conclusion  
-📌 Key Takeaways:  
+Key Takeaways:  
 - Most Likely Diagnosis: (Brief summary)  
 - Recommended Actions: (Main steps for treatment and next consultation)  
 The most likely condition the patient could have is **{result_pred['class']}** with a confidence of {result_pred['confidence']:.2f}. 
@@ -214,47 +199,15 @@ Note: This report is AI-generated and should not replace professional medical co
         net_agent = Agent(
             name="Medical Imaging Expert",
             model=Groq(id="qwen-2.5-32b"),
-            tools=[DuckDuckGoTools()],  
+            tools=[DuckDuckGoTools(),Crawl4aiTools()],  
             context={"pred": pred.content},
             add_context=True,
             markdown=True,  
             instructions=dedent(
-                f"""You are an AI-powered Dermatology Voice Assistant, designed to provide expert-level support to dermatologists. Your role is to analyze report {report.content} recommend evidence-based treatments, and guide doctors on the next steps using the latest research and drug discoveries.  
-                The most likely condition the patient could have is **{result_pred['class']}** with a confidence of {result_pred['confidence']:.2f}. 
-                Additionally, there is a minor possibility of **{minor_result['class']}** with a confidence of {minor_result['confidence']:.2f}. 
-
+                f"""
                 **Remarks:**  
                 - **{result_pred['class']}** (Confidence: {result_pred['confidence']:.2f}) is the primary concern and should be prioritized for diagnosis and treatment.  
                 - **{minor_result['class']}** (Confidence: {minor_result['confidence']:.2f}) may be a secondary condition or share similar symptoms. Further medical evaluation is recommended to rule it out.
-
-                ### 1️⃣ Understand & Analyze the Case  
-                - Listen to the doctor’s query about a patient’s condition.  
-                - Identify the disease or condition being discussed.  
-                - Analyze symptoms, affected areas, and disease progression based on the given context or medical report.  
-
-                ### 2️⃣ Provide the Latest Treatment Recommendations  
-                - Fetch current treatment guidelines, FDA-approved drugs, and clinical trials using web sources.  
-                - Explain the best available treatment options, including **topical, oral, biologic, and advanced therapies.  
-                - Compare traditional treatments with newly discovered therapies (e.g., AI-assisted skin diagnostics, gene therapy, biologics).  
-
-                ### 3️⃣ Generate a Complete Prescription Plan  
-                - Suggest medications, dosages, frequency, and possible side effects.  
-                - Recommend adjunct therapies, such as lifestyle modifications and skincare routines.  
-                - Warn about contraindications or potential drug interactions.  
-
-                ### 4️⃣ Guide the Doctor on the Next Steps  
-                - Recommend further diagnostic tests (e.g., biopsy, dermoscopy, blood tests, genetic markers).  
-                - Suggest patient follow-up intervals and monitoring plans.  
-                - Provide guidelines for managing severe or resistant cases.  
-
-                ### 5️⃣ Provide Reliable Medical Sources & Links  
-                - Fetch research-backed insights from trusted sources such as PubMed, JAMA Dermatology, The Lancet, FDA, and WHO.  
-                - Offer links to the latest studies, treatment guidelines, and clinical trials for validation.  
-
-                ---
-
-                Instructions should be understandable by Dermatologists not for layman audience and make it like a proffesional advice to doctor like doctor is giving advice to the other doctor and make complete instruction summarize and in 4 to 5 lines pointwise.
-                - give answer in proper markdown format.
 
                 """)
 
@@ -281,13 +234,6 @@ def get_ans(q: Query):
                 model=Groq(id="qwen-2.5-32b"),
                 tools=[DuckDuckGoTools()],  
                 markdown=True,  
-                instructions=dedent(
-                    f"""Analyze the given question as an expert dermatologist. use web to get more insights and make sure that your answers are based on doctor point of view that a dermatologist should understand that.
-                    - give proper links and references.
-                    - very concise answer and short answer to the point of the question.
-                    - give answer in proper markdown format.
-                    """),
-
             )
         get_w_result: RunResponse = w_agent.run(q.query)
         return {"response": get_w_result.content}
@@ -298,14 +244,6 @@ def get_ans(q: Query):
             context={"diagnosis": mongo_pred},
             add_context=True,
             markdown=True,  
-            instructions=dedent(
-                f"""Analyze the given question as an expert dermatologist. use web to get more insights and make sure that your answers are based on doctor point of view that a dermatologist should understand that.
-                 - guide the doctor with treatment and prescription plan for the diesease.
-                 - give proper links and references.
-                 - very concise answer and short answer to the point of the question.
-                 - give answer in proper markdown format.
-                   """),
-
         )
     deep_agent = Agent(
             name="Skin Disease Research Expert",
@@ -314,16 +252,7 @@ def get_ans(q: Query):
             context={"pred_diagnostic": mongo_pred},
             add_context=True,
             markdown=True,  
-            instructions=dedent(
-                f"""Analyze the given question as an expert dermatologist. use Arxiv to get latest research and discoveries and make sure that your answers are based on doctor point of view that a dermatologist should understand that. and that provide the new treatment discoveries and latest research on treatment and drug that is done on the disease and how to treat it.
-                 - give proper links and references.
-                 - give answer in proper markdown format.
-                 - very concise answer and short answer to the point of the question.
-                 - if not context provided then just act as a professional Dermatologist and give the answer.
-                 - guide the doctor with treatment and prescription plan for the diesease.
-                   """),
-
-        )
+            )
     if q.deep_search:
         get_deep_result: RunResponse = deep_agent.run(q.query)
         return {"response": get_deep_result.content}

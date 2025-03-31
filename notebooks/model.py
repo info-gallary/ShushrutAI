@@ -1,50 +1,50 @@
-import torch.nn as nn
-import torch.nn.functional as F
+# import torch.nn as nn
+# import torch.nn.functional as F
 
-class SkinDiseaseCNN(nn.Module):
-    def __init__(self, num_classes=9):
-        super(SkinDiseaseCNN, self).__init__()
+# class SkinDiseaseCNN(nn.Module):
+#     def __init__(self, num_classes=9):
+#         super(SkinDiseaseCNN, self).__init__()
         
-        # Feature Extraction
-        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
-        self.bn1 = nn.BatchNorm2d(32)
+#         # Feature Extraction
+#         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+#         self.bn1 = nn.BatchNorm2d(32)
         
-        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-        self.bn2 = nn.BatchNorm2d(64)
+#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+#         self.bn2 = nn.BatchNorm2d(64)
         
-        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
-        self.bn3 = nn.BatchNorm2d(128)
+#         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+#         self.bn3 = nn.BatchNorm2d(128)
         
-        self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
-        self.bn4 = nn.BatchNorm2d(256)
+#         self.conv4 = nn.Conv2d(128, 256, kernel_size=3, stride=1, padding=1)
+#         self.bn4 = nn.BatchNorm2d(256)
         
-        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-        self.dropout = nn.Dropout(0.5)  # Prevent overfitting
+#         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+#         self.dropout = nn.Dropout(0.5)  # Prevent overfitting
         
-        # Adaptive Pooling to make it more flexible
-        self.global_pool = nn.AdaptiveAvgPool2d((4, 4))
+#         # Adaptive Pooling to make it more flexible
+#         self.global_pool = nn.AdaptiveAvgPool2d((4, 4))
         
-        # Fully Connected Layers
-        self.fc1 = nn.Linear(256 * 4 * 4, 512)
-        self.fc2 = nn.Linear(512, 256)
-        self.fc3 = nn.Linear(256, num_classes)
+#         # Fully Connected Layers
+#         self.fc1 = nn.Linear(256 * 4 * 4, 512)
+#         self.fc2 = nn.Linear(512, 256)
+#         self.fc3 = nn.Linear(256, num_classes)
 
-    def forward(self, x):
-        x = self.pool(F.leaky_relu(self.bn1(self.conv1(x))))
-        x = self.pool(F.leaky_relu(self.bn2(self.conv2(x))))
-        x = self.pool(F.leaky_relu(self.bn3(self.conv3(x))))
-        x = self.pool(F.leaky_relu(self.bn4(self.conv4(x))))
+#     def forward(self, x):
+#         x = self.pool(F.leaky_relu(self.bn1(self.conv1(x))))
+#         x = self.pool(F.leaky_relu(self.bn2(self.conv2(x))))
+#         x = self.pool(F.leaky_relu(self.bn3(self.conv3(x))))
+#         x = self.pool(F.leaky_relu(self.bn4(self.conv4(x))))
         
-        x = self.global_pool(x)  # Adaptive pooling
-        x = x.view(x.size(0), -1)  # Flatten
+#         x = self.global_pool(x)  # Adaptive pooling
+#         x = x.view(x.size(0), -1)  # Flatten
         
-        x = F.leaky_relu(self.fc1(x))
-        x = self.dropout(x)  # Dropout for regularization
-        x = F.leaky_relu(self.fc2(x))
-        x = self.dropout(x)
-        x = self.fc3(x)  # Final classification layer
+#         x = F.leaky_relu(self.fc1(x))
+#         x = self.dropout(x)  # Dropout for regularization
+#         x = F.leaky_relu(self.fc2(x))
+#         x = self.dropout(x)
+#         x = self.fc3(x)  # Final classification layer
         
-        return x
+#         return x
 
 # import torch
 # import torch.nn as nn
@@ -181,59 +181,53 @@ class SkinDiseaseCNN(nn.Module):
 
 
 
-# import torch
-# import torch.nn as nn
-# import torch.nn.functional as F
-# from timm import create_model
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from timm import create_model
 
-# class HybridSkinDiseaseModel(nn.Module):
-#     def __init__(self, num_classes=9):
-#         super(HybridSkinDiseaseModel, self).__init__()
+class HybridSkinDiseaseModel(nn.Module):
+    def __init__(self, num_classes=9):
+        super(HybridSkinDiseaseModel, self).__init__()
 
-#         #### 🔹 CNN Feature Extractor (Local Features)
-#         self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
-#         self.bn1 = nn.BatchNorm2d(32)
+        self.conv1 = nn.Conv2d(3, 32, kernel_size=3, stride=1, padding=1)
+        self.bn1 = nn.BatchNorm2d(32)
         
-#         self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
-#         self.bn2 = nn.BatchNorm2d(64)
+        self.conv2 = nn.Conv2d(32, 64, kernel_size=3, stride=1, padding=1)
+        self.bn2 = nn.BatchNorm2d(64)
         
-#         self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
-#         self.bn3 = nn.BatchNorm2d(128)
+        self.conv3 = nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1)
+        self.bn3 = nn.BatchNorm2d(128)
         
-#         self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
-#         self.global_pool = nn.AdaptiveAvgPool2d((4, 4))
+        self.pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        self.global_pool = nn.AdaptiveAvgPool2d((4, 4))
 
-#         #### 🔹 Swin Transformer (Global Features)
-#         self.swin = create_model("swin_tiny_patch4_window7_224", pretrained=True, num_classes=0)
-#         self.feature_dim = self.swin.num_features  # 768 for Swin-Tiny
+        self.swin = create_model("swin_tiny_patch4_window7_224", pretrained=True, num_classes=0)
+        self.feature_dim = self.swin.num_features  
 
-#         #### 🔹 Fully Connected Layers
-#         self.fc_cnn = nn.Linear(128 * 4 * 4, 256)  # CNN output
-#         self.fc_swin = nn.Linear(self.feature_dim, 256)  # Swin output
+        self.fc_cnn = nn.Linear(128 * 4 * 4, 256)  
+        self.fc_swin = nn.Linear(self.feature_dim, 256)  
         
-#         self.fc_final = nn.Linear(512, num_classes)  # Merged output layer
-#         self.dropout = nn.Dropout(0.5)  # Regularization
+        self.fc_final = nn.Linear(512, num_classes)  
+        self.dropout = nn.Dropout(0.5)  
 
-#     def forward(self, x):
-#         #### 🔥 CNN Forward Pass
-#         x_cnn = self.pool(F.leaky_relu(self.bn1(self.conv1(x))))
-#         x_cnn = self.pool(F.leaky_relu(self.bn2(self.conv2(x_cnn))))
-#         x_cnn = self.pool(F.leaky_relu(self.bn3(self.conv3(x_cnn))))
-#         x_cnn = self.global_pool(x_cnn)  
-#         x_cnn = x_cnn.view(x_cnn.size(0), -1)  # Flatten
-#         x_cnn = F.leaky_relu(self.fc_cnn(x_cnn))
+    def forward(self, x):
+        x_cnn = self.pool(F.leaky_relu(self.bn1(self.conv1(x))))
+        x_cnn = self.pool(F.leaky_relu(self.bn2(self.conv2(x_cnn))))
+        x_cnn = self.pool(F.leaky_relu(self.bn3(self.conv3(x_cnn))))
+        x_cnn = self.global_pool(x_cnn)  
+        x_cnn = x_cnn.view(x_cnn.size(0), -1)  
+        x_cnn = F.leaky_relu(self.fc_cnn(x_cnn))
 
-#         #### 🔥 Swin Transformer Forward Pass
-#         x_swin = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
-#         x_swin = self.swin(x_swin)  # (batch_size, feature_dim)
-#         x_swin = F.leaky_relu(self.fc_swin(x_swin))
+        x_swin = F.interpolate(x, size=(224, 224), mode='bilinear', align_corners=False)
+        x_swin = self.swin(x_swin)  
+        x_swin = F.leaky_relu(self.fc_swin(x_swin))
 
-#         #### 🔥 Fusion of CNN & Swin Transformer
-#         x_combined = torch.cat((x_cnn, x_swin), dim=1)  # Merge both feature vectors
-#         x_combined = self.dropout(x_combined)
-#         x_out = self.fc_final(x_combined)  # Final classification layer
+        x_combined = torch.cat((x_cnn, x_swin), dim=1)  
+        x_combined = self.dropout(x_combined)
+        x_out = self.fc_final(x_combined)  
 
-#         return x_out
+        return x_out
 
 
 

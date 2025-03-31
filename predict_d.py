@@ -4,8 +4,6 @@ from PIL import Image
 from io import BytesIO
 
 
-
-
 def load_model(weights_path, num_classes):
     model = models.densenet121(weights=None)
     num_features = model.classifier.in_features
